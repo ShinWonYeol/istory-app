@@ -75,13 +75,18 @@ jobs:
 
       - name: Create deployment package
         run: |
-          mkdir -p deployment/scripts
-          cp build/libs/*.jar deployment/${{ env.ARTIFACT_NAME }}
-          cp appspec.yml deployment/
-          cp scripts/* deployment/scripts/
-          chmod +x deployment/scripts/*.sh
-          chmod +x deployment/*.jar
-          cd deployment && zip -r ../deploy.zip .          
+          # 1) 임시 작업 디렉터리
+          mkdir -p deploy
+          # 2) JAR · appspec · scripts를 루트에 복사
+            cp build/libs/*.jar deploy/${{ env.ARTIFACT_NAME }}
+            cp appspec.yml deploy/
+            mkdir -p deploy/scripts
+            cp scripts/* deploy/scripts/
+            chmod +x deploy/scripts/*.sh
+            chmod +x deploy/${{ env.ARTIFACT_NAME }}
+            # 3) deploy/ 디렉터리 안으로 cd 하지 말고 *바로* 압축
+            cd deploy
+            zip -r ../deploy.zip .         
 
       - name: S3 업로드
         run: |
