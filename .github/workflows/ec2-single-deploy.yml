@@ -8,7 +8,7 @@ permissions:
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "test"]
     paths:
       - 'xinfra/ec2-single/**'
       - '.github/workflows/ec2-single-deploy.yml'
@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: 배포용 소스 다운로드
         uses: actions/checkout@v4
-     # rds 정보를 삽입
+
       - name: 개발용 application.yml 생성
         run: |
           cat > src/main/resources/application.yml << EOF
@@ -56,7 +56,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }} 
+          aws-region: ${{ vars.AWS_REGION }} 
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -75,18 +75,13 @@ jobs:
 
       - name: Create deployment package
         run: |
-          # 1) 임시 작업 디렉터리
-          mkdir -p deploy
-          # 2) JAR · appspec · scripts를 루트에 복사
-            cp build/libs/*.jar deploy/${{ env.ARTIFACT_NAME }}
-            cp appspec.yml deploy/
-            mkdir -p deploy/scripts
-            cp scripts/* deploy/scripts/
-            chmod +x deploy/scripts/*.sh
-            chmod +x deploy/${{ env.ARTIFACT_NAME }}
-            # 3) deploy/ 디렉터리 안으로 cd 하지 말고 *바로* 압축
-            cd deploy
-            zip -r ../deploy.zip .         
+          mkdir -p deployment/scripts
+          cp build/libs/*.jar deployment/${{ env.ARTIFACT_NAME }}
+          cp appspec.yml deployment/
+          cp scripts/* deployment/scripts/
+          chmod +x deployment/scripts/*.sh
+          chmod +x deployment/*.jar
+          cd deployment && zip -r ../deploy.zip .          
 
       - name: S3 업로드
         run: |
@@ -94,10 +89,6 @@ jobs:
           aws s3 cp deployment/${{ env.ARTIFACT_NAME }} s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
           # 배포 패키지 업로드
           aws s3 cp deploy.zip s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip  
-
-          
-
-
       - name: 기존 진행중인 배포 삭제
         run: |
           DEPLOYMENTS=$(aws deploy list-deployments \
