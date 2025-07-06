@@ -1,0 +1,34 @@
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /home/ec2-user/app
+permissions:
+  - object: /home/ec2-user/app
+    pattern: "**"
+    owner: ec2-user
+    group: ec2-user
+    mode: 755
+  - object: /home/ec2-user/app/scripts    # 스크립트 디렉토리
+    pattern: "*.sh"
+    owner: ec2-user
+    group: ec2-user
+    mode: 755    # 스크립트 파일에 실행 권한 부여
+  - object: /home/ec2-user/app/*.jar      # JAR 파일
+    pattern: "*.jar"
+    owner: ec2-user
+    group: ec2-user
+    mode: 755    # JAR 파일에도 실행 권한 필요
+hooks:
+  BeforeInstall:
+    - location: scripts/before_install.sh
+      timeout: 300
+      runas: ec2-user
+  ApplicationStart:
+    - location: scripts/start_application.sh
+      timeout: 300
+      runas: ec2-user
+  ApplicationStop:
+    - location: scripts/stop_application.sh
+      timeout: 300
+      runas: ec2-user
