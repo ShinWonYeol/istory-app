@@ -95,6 +95,9 @@ jobs:
           # 배포 패키지 업로드
           aws s3 cp deploy.zip s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip  
 
+          
+
+
       - name: 기존 진행중인 배포 삭제
         run: |
           DEPLOYMENTS=$(aws deploy list-deployments \
