@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:mysql://host.docker.internal:3306/istory}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:admin123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+  application:
+    name: USER-SERVICE
+  jwt:
+    issuer: user@gmail.com
+    secret_key: study-springboot
