@@ -77,17 +77,35 @@ jobs:
       - name: Create deployment package
         run: |
           mkdir -p deploy/scripts
-          cp build/libs/*.jar  deploy/${{ env.ARTIFACT_NAME }}
           cp appspec.yml       deploy/
           cp scripts/*         deploy/scripts/
+          cp build/libs/*.jar  deploy/${{ env.ARTIFACT_NAME }}
           chmod +x deploy/scripts/*.sh
           chmod +x deploy/${{ env.ARTIFACT_NAME }}
           zip -r deploy.zip deploy
 
+# 🔍 1) zip 구조 & appspec.yml 내용 확인 -------------------
+      - name: Verify zip and AppSpec
+        run: |
+          echo "== ZIP 구조 =="
+          unzip -l deploy.zip
+          echo "== AppSpec 내용 =="
+          unzip -p deploy.zip deploy/appspec.yml   # zip 안의 실제 경로
+          echo "========================================"
+
+# 2) S3 업로드 ------------------------------------------
       - name: S3 업로드
         run: |
-          aws s3 cp deploy/${{ env.ARTIFACT_NAME }} s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
-          aws s3 cp deploy.zip s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
+          echo "업로드할 JAR  : deploy/${{ env.ARTIFACT_NAME }}"
+          echo "업로드할 ZIP  : deploy.zip"
+          aws s3 cp deploy/${{ env.ARTIFACT_NAME }} \
+          s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
+          aws s3 cp deploy.zip \
+          s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
+
+# 🔍 3) S3 키 확인 (선택)
+      - name: S3 객체 목록 확인
+        run: aws s3 ls s3://${{ secrets.AWS_S3_BUCKET }}/deploy/
 
       - name: 기존 진행중인 배포 삭제
         run: |
