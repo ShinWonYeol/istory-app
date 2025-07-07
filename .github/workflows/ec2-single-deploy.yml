@@ -9,7 +9,7 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - 'xinfra/ec2-single/**'
+      - 'xinfra/istory-ec2-single/**'
       - '.github/workflows/ec2-single-deploy.yml'
       - 'scripts/**'
       - 'appspec.yml'
