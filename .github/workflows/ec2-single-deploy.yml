@@ -73,22 +73,25 @@ jobs:
         run: |
           echo "ARTIFACT_NAME=springboot-$(date +'%Y%m%d-%H%M%S').jar" >> $GITHUB_ENV
 
+# 1) Create deployment package
       - name: Create deployment package
         run: |
-          mkdir -p deployment/scripts
-          cp build/libs/*.jar deployment/${{ env.ARTIFACT_NAME }}
-          cp appspec.yml deployment/
-          cp scripts/* deployment/scripts/
-          chmod +x deployment/scripts/*.sh
-          chmod +x deployment/*.jar
-          cd deployment && zip -r ../deploy.zip .          
+          mkdir -p deploy/scripts
+        # 파일을 deploy/ 루트에 복사
+          cp build/libs/*.jar  deploy/${{ env.ARTIFACT_NAME }}
+          cp appspec.yml      deploy/
+          cp scripts/*        deploy/scripts/
+          chmod +x deploy/scripts/*.sh
+          chmod +x deploy/${{ env.ARTIFACT_NAME }}
+        # 루트(.)에서 zip → deploy.zip
+          zip -r deploy.zip deploy      # <-- cd 하지 말고 이 한 줄
 
+        # 2) S3 업로드 (경로도 deploy/ 로 통일)
       - name: S3 업로드
         run: |
-          # JAR 파일 업로드
-          aws s3 cp deployment/${{ env.ARTIFACT_NAME }} s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
-          # 배포 패키지 업로드
-          aws s3 cp deploy.zip s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip  
+          aws s3 cp deploy/${{ env.ARTIFACT_NAME }} s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
+          aws s3 cp deploy.zip            s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
+
       - name: 기존 진행중인 배포 삭제
         run: |
           DEPLOYMENTS=$(aws deploy list-deployments \
