@@ -8,7 +8,7 @@ permissions:
 
 on:
   push:
-    branches: [ "test"]
+    branches: [ "main"]
     paths:
       - 'xinfra/ec2-single/**'
       - '.github/workflows/ec2-single-deploy.yml'
