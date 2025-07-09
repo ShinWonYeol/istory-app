@@ -14,7 +14,7 @@ permissions:
     owner: ec2-user
     group: ec2-user
     mode: 755    # 스크립트 파일에 실행 권한 부여
-  - object: /home/ec2-user/app/*.jar      # JAR 파일
+  - object: /home/ec2-user/app/     # JAR 파일
     pattern: "*.jar"
     owner: ec2-user
     group: ec2-user
