@@ -67,21 +67,22 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew bootJar 
-
+          cp build/libs/*.jar deployment/app.jar  # 이름 고정
+          
       - name: Generate artifact name with timestamp
         run: |
           echo "ARTIFACT_NAME=springboot-$(date +'%Y%m%d-%H%M%S').jar" >> $GITHUB_ENV
 
+        
       - name: Create deployment package
         run: |
           mkdir -p deployment/scripts
-          cp build/libs/*.jar deployment/${{ env.ARTIFACT_NAME }}
-          cp appspec.yml deployment/
           cp scripts/* deployment/scripts/
+          cp appspec.yml deployment/
           chmod +x deployment/scripts/*.sh
-          chmod +x deployment/*.jar
-          cd deployment && zip -r ../deploy.zip .          
-
+          chmod +x deployment/app.jar
+          cd deployment && zip -r ../deploy.zip .
+          
       - name: S3 업로드
         run: |
           # JAR 파일 업로드
