@@ -1,0 +1,172 @@
+name: istory ci/cd dev pipeline
+
+permissions:
+  contents: read
+  security-events: write  # CodeQL 결과를 업로드하기 위한 권한
+  actions: read
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'xinfra/istory-ec2-single/**'
+      - '.github/workflows/ec2-single-deploy.yml'
+      - 'scripts/**'
+      - 'appspec.yml'
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    environment: pord
+
+    steps:
+      - name: 배포용 소스 다운로드
+        uses: actions/checkout@v4
+
+      - name: 개발용 application.yml 생성
+        run: |
+          cat > src/main/resources/application.yml << EOF
+          spring:
+            datasource:
+              url: ${{ secrets.DATABASE_URL }}
+              username: ${{ secrets.MYSQL_USER }}
+              password: ${{ secrets.MYSQL_PASSWORD }}
+              driver-class-name: com.mysql.cj.jdbc.Driver
+            jpa:
+              database-platform: org.hibernate.dialect.MySQL8Dialect
+              hibernate:
+                ddl-auto: update
+              show-sql: true
+            application:
+              name: USER-SERVICE
+            jwt:
+              issuer: user@gmail.com
+              secret_key: study-springboot
+          management:
+            endpoints:
+              web:
+                exposure:
+                  include: health,info
+            endpoint:
+              health:
+                show-details: always
+          EOF
+
+      - name: AWS 접속정보 설정
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew bootJar
+
+      - name: Generate artifact name with timestamp
+        run: |
+          echo "ARTIFACT_NAME=springboot-$(date +'%Y%m%d-%H%M%S').jar" >> $GITHUB_ENV
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy/scripts
+          cp appspec.yml       deploy/
+          cp scripts/*         deploy/scripts/
+          cp build/libs/*.jar  deploy/${{ env.ARTIFACT_NAME }}
+          chmod +x deploy/scripts/*.sh
+          chmod +x deploy/${{ env.ARTIFACT_NAME }}
+          zip -r deploy.zip deploy
+
+            - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew bootJar
+
+# ✅ 코드 스타일 체크
+      - name: Run Checkstyle
+        run: |
+          mkdir -p build/reports/checkstyle
+          ./gradlew checkstyleMain checkstyleTest --info
+          ls -la build/reports/checkstyle || true
+
+      - name: Upload Checkstyle results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkstyle-report
+          path: build/reports/checkstyle/
+          retention-days: 14
+
+      - name: Generate Checkstyle Summary
+        run: |
+          echo "## 코드 스타일 분석결과" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f build/reports/checkstyle/main.xml ]; then
+            echo "### 소스 분석 결과 (main.xml)" >> $GITHUB_STEP_SUMMARY
+            echo '```xml' >> $GITHUB_STEP_SUMMARY
+            cat build/reports/checkstyle/main.xml | head -n 100 >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No checkstyle result found." >> $GITHUB_STEP_SUMMARY
+          fi
+ # 🔍 1) zip 구조 & appspec.yml 내용 확인 -------------------
+      - name: Verify zip and AppSpec
+        run: |
+          echo "== ZIP 구조 =="
+          unzip -l deploy.zip
+          echo "== AppSpec 내용 =="
+          unzip -p deploy.zip deploy/appspec.yml   # zip 안의 실제 경로
+          echo "========================================"
+
+# 2) S3 업로드 ------------------------------------------
+      - name: S3 업로드
+        run: |
+          echo "업로드할 JAR  : deploy/${{ env.ARTIFACT_NAME }}"
+          echo "업로드할 ZIP  : deploy.zip"
+          aws s3 cp deploy/${{ env.ARTIFACT_NAME }} \
+          s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
+          aws s3 cp deploy.zip \
+          s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
+
+# 🔍 3) S3 키 확인 (선택)
+      - name: S3 객체 목록 확인
+        run: aws s3 ls s3://${{ secrets.AWS_S3_BUCKET }}/deploy/
+
+      - name: 기존 진행중인 배포 삭제
+        run: |
+          DEPLOYMENTS=$(aws deploy list-deployments \
+            --application-name istory-app \
+            --deployment-group-name istory-deploy-group \
+            --include-only-statuses "InProgress" \
+            --query 'deployments[]' \
+            --output text)
+
+          if [ ! -z "$DEPLOYMENTS" ]; then
+            for deployment in $DEPLOYMENTS; do
+              echo "Stopping deployment $deployment"
+              aws deploy stop-deployment --deployment-id $deployment
+            done
+            sleep 10
+          fi
+      - name: 9. 배포 생성
+        id: deploy
+        run: |
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name istory-app \
+            --deployment-group-name istory-prod-deploy-group \
+            --s3-location bucket=${{ secrets.AWS_S3_BUCKET }},key=deploy/deploy.zip,bundleType=zip \
+            --deployment-config-name CodeDeployDefault.OneAtATime \
+            --output text \
+            --query 'deploymentId')
+          echo "deployment_id=${DEPLOYMENT_ID}" >> $GITHUB_OUTPUT
+
+      - name: 10. 배포 성공 대기
+        run: |
+          aws deploy wait deployment-successful --deployment-id ${{ steps.deploy.outputs.deployment_id }}   
