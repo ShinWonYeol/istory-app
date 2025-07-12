@@ -10,7 +10,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'xinfra/istory-ec2-single/**'
-      - '.github/workflows/ec2-single-deploy.yml'
+      - '.github/workflows/ec2-bg-deploy.yml'
       - 'scripts/**'
       - 'appspec.yml'
 
