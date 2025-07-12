@@ -17,7 +17,7 @@ on:
 jobs:
   build-and-upload:
     runs-on: ubuntu-latest
-    environment: pord
+    environment: prod
 
     steps:
       - name: 배포용 소스 다운로드
