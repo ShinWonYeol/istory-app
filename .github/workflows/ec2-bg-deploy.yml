@@ -91,7 +91,7 @@ jobs:
           if [ -f build/reports/checkstyle/main.xml ]; then
             echo "### 소스 분석 결과 (main.xml)" >> $GITHUB_STEP_SUMMARY
             echo '```xml' >> $GITHUB_STEP_SUMMARY
-            cat build/reports/checkstyle/main.xml | head -n 100 >> $GITHUB_STEP_SUMMARY
+            head -n 100 build/reports/checkstyle/main.xml >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo "No checkstyle result found." >> $GITHUB_STEP_SUMMARY
@@ -117,16 +117,13 @@ jobs:
           unzip -l deploy.zip
           echo "== AppSpec 내용 =="
           unzip -p deploy.zip deploy/appspec.yml
-          echo "========================================"
 
       - name: S3 업로드
         run: |
           echo "업로드할 JAR  : deploy/${{ env.ARTIFACT_NAME }}"
           echo "업로드할 ZIP  : deploy.zip"
-          aws s3 cp deploy/${{ env.ARTIFACT_NAME }} \
-            s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
-          aws s3 cp deploy.zip \
-            s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
+          aws s3 cp deploy/${{ env.ARTIFACT_NAME }} s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
+          aws s3 cp deploy.zip s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
 
       - name: S3 객체 목록 확인
         run: aws s3 ls s3://${{ secrets.AWS_S3_BUCKET }}/deploy/
@@ -139,7 +136,6 @@ jobs:
             --include-only-statuses "InProgress" \
             --query 'deployments[]' \
             --output text)
-
           if [ ! -z "$DEPLOYMENTS" ]; then
             for deployment in $DEPLOYMENTS; do
               echo "Stopping deployment $deployment"
