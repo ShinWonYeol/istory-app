@@ -2,7 +2,7 @@ name: istory ci/cd dev pipeline
 
 permissions:
   contents: read
-  security-events: write  # CodeQL 결과를 업로드하기 위한 권한
+  security-events: write
   actions: read
 
 on:
@@ -70,26 +70,6 @@ jobs:
           chmod +x gradlew
           ./gradlew bootJar
 
-      - name: Generate artifact name with timestamp
-        run: |
-          echo "ARTIFACT_NAME=springboot-$(date +'%Y%m%d-%H%M%S').jar" >> $GITHUB_ENV
-
-      - name: Create deployment package
-        run: |
-          mkdir -p deploy/scripts
-          cp appspec.yml       deploy/
-          cp scripts/*         deploy/scripts/
-          cp build/libs/*.jar  deploy/${{ env.ARTIFACT_NAME }}
-          chmod +x deploy/scripts/*.sh
-          chmod +x deploy/${{ env.ARTIFACT_NAME }}
-          zip -r deploy.zip deploy
-
-            - name: Build with Gradle
-        run: |
-          chmod +x gradlew
-          ./gradlew bootJar
-
-# ✅ 코드 스타일 체크
       - name: Run Checkstyle
         run: |
           mkdir -p build/reports/checkstyle
@@ -116,26 +96,38 @@ jobs:
           else
             echo "No checkstyle result found." >> $GITHUB_STEP_SUMMARY
           fi
- # 🔍 1) zip 구조 & appspec.yml 내용 확인 -------------------
+
+      - name: Generate artifact name with timestamp
+        run: |
+          echo "ARTIFACT_NAME=springboot-$(date +'%Y%m%d-%H%M%S').jar" >> $GITHUB_ENV
+
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy/scripts
+          cp appspec.yml       deploy/
+          cp scripts/*         deploy/scripts/
+          cp build/libs/*.jar  deploy/${{ env.ARTIFACT_NAME }}
+          chmod +x deploy/scripts/*.sh
+          chmod +x deploy/${{ env.ARTIFACT_NAME }}
+          zip -r deploy.zip deploy
+
       - name: Verify zip and AppSpec
         run: |
           echo "== ZIP 구조 =="
           unzip -l deploy.zip
           echo "== AppSpec 내용 =="
-          unzip -p deploy.zip deploy/appspec.yml   # zip 안의 실제 경로
+          unzip -p deploy.zip deploy/appspec.yml
           echo "========================================"
 
-# 2) S3 업로드 ------------------------------------------
       - name: S3 업로드
         run: |
           echo "업로드할 JAR  : deploy/${{ env.ARTIFACT_NAME }}"
           echo "업로드할 ZIP  : deploy.zip"
           aws s3 cp deploy/${{ env.ARTIFACT_NAME }} \
-          s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
+            s3://${{ secrets.AWS_S3_BUCKET }}/artifacts/
           aws s3 cp deploy.zip \
-          s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
+            s3://${{ secrets.AWS_S3_BUCKET }}/deploy/deploy.zip
 
-# 🔍 3) S3 키 확인 (선택)
       - name: S3 객체 목록 확인
         run: aws s3 ls s3://${{ secrets.AWS_S3_BUCKET }}/deploy/
 
@@ -155,7 +147,8 @@ jobs:
             done
             sleep 10
           fi
-      - name: 9. 배포 생성
+
+      - name: 배포 생성
         id: deploy
         run: |
           DEPLOYMENT_ID=$(aws deploy create-deployment \
@@ -167,6 +160,6 @@ jobs:
             --query 'deploymentId')
           echo "deployment_id=${DEPLOYMENT_ID}" >> $GITHUB_OUTPUT
 
-      - name: 10. 배포 성공 대기
+      - name: 배포 성공 대기
         run: |
-          aws deploy wait deployment-successful --deployment-id ${{ steps.deploy.outputs.deployment_id }}   
+          aws deploy wait deployment-successful --deployment-id ${{ steps.deploy.outputs.deployment_id }}
